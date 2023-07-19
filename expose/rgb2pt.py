@@ -495,11 +495,11 @@ if __name__ == '__main__':
                                      description=description)
 
     parser.add_argument('--image-folder', type=str, dest='image_folder',
-                        default='/mnt/Data/Datasets/Own/img/0608-yzk-drink',
+                        default='/mnt/h/Datasets/Own/img/0608-yzk-drink',
                         help='The folder with images that will be processed')
     parser.add_argument('--exp-cfg', type=str, dest='exp_cfg', default='data/conf.yaml',
                         help='The configuration of the experiment')
-    parser.add_argument('--output-folder', dest='output_folder', default='../data/mat_mesh/', type=str,
+    parser.add_argument('--output-folder', dest='output_folder', default='/mnt/h/Datasets/Own/Mesh/RGB', type=str,
                         help='The folder where the demo renderings will be' +
                              ' saved')
     parser.add_argument('--exp-opts', default=[], dest='exp_opts',
