@@ -211,6 +211,7 @@ def undo_img_normalization(image, mean, std, add_alpha=True):
 
 @torch.no_grad()
 def main(
+        root_path: str,
         image_folder: str,
         exp_cfg,
         show: bool = False,
@@ -222,8 +223,8 @@ def main(
         save_vis: bool = True,
         save_params: bool = False,
         save_mesh: bool = False,
-        degrees: Optional[List[float]] = [],
-) -> None:
+        degrees: Optional[List[float]] = []
+        ) -> None:
     device = torch.device('cuda')
     if not torch.cuda.is_available():
         logger.error('CUDA is not available!')
@@ -234,11 +235,10 @@ def main(
                level=exp_cfg.logger_level.upper(),
                colorize=True)
 
+    trte = 'train/' if define_training_data(image_folder) else 'test/'
     # image_folder = image_folder[56:88]
-    expose_dloader = preprocess_images(
-        image_folder + '/', exp_cfg, batch_size=rcnn_batch, device=device)
-
-    demo_output_folder = osp.expanduser(osp.expandvars(demo_output_folder))
+    expose_dloader = preprocess_images(root_path + trte + image_folder + '/', exp_cfg, batch_size=rcnn_batch, device=device)
+    demo_output_folder = osp.expanduser(osp.expandvars(demo_output_folder + trte))
     logger.info(f'Saving results to: {demo_output_folder}')
     os.makedirs(demo_output_folder, exist_ok=True)
 
@@ -274,6 +274,7 @@ def main(
     total_time = 0
     cnt = 0
     mesh_points = np.empty(shape=(0, 10475, 3), dtype=float)
+    base_joint = torch.empty(size=(0, 144, 3))
 
     for bidx, batch in enumerate(tqdm(expose_dloader, dynamic_ncols=True)):
 
@@ -438,7 +439,8 @@ def main(
                         out_params[key] = val[idx].item()
                     else:
                         out_params[key] = val[idx]
-                np.savez_compressed(params_fname, **out_params)
+                base_joint = torch.concatenate((base_joint, torch.FloatTensor(out_params['joints']).view(1, 144, 3)))
+                # np.savez_compressed(params_fname, **out_params)
 
             if show:
                 nrows = 1
@@ -467,13 +469,16 @@ def main(
                 else:
                     plt.show()
 
-    mesh_pt_name = '/mnt/Data/Datasets/Own/Mesh/RGB/'
-    image_folder_splited = image_folder.split('/')
-    pt_name = image_folder_splited[len(image_folder_splited) - 1]
-    mesh_pt_name += pt_name + '_rgb.pt'
-    torch.save(torch.FloatTensor(mesh_points), mesh_pt_name)
-    print(f"Generated {pt_name} Shape {mesh_points.shape}")
-    # logger.info(f'Average inference time: {total_time / cnt}')
+    if save_mesh:
+        mesh_pt_name = '/mnt/Data/Datasets/Own/Mesh/RGB/'
+        image_folder_splited = image_folder.split('/')
+        pt_name = image_folder_splited[len(image_folder_splited) - 1]
+        mesh_pt_name += pt_name + '_rgb.pt'
+        torch.save(torch.FloatTensor(mesh_points), mesh_pt_name)
+        print(f"Generated {pt_name} Shape {mesh_points.shape}")
+        logger.info(f'Average inference time: {total_time / cnt}')
+    if save_params:
+        torch.save(base_joint, os.path.join(demo_output_folder, str(image_folder + '_base_joint.pt')))
 
 
 def define_training_data(filename):
@@ -494,12 +499,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=arg_formatter,
                                      description=description)
 
-    parser.add_argument('--image-folder', type=str, dest='image_folder',
-                        default='/mnt/h/Datasets/Own/img/0608-yzk-drink',
+    parser.add_argument('--root_path', type=str, dest='root_path',
+                        default='/mnt/h/Datasets/NTU/rgb_img_single/',
+                        help='The folder with images that will be processed')
+    parser.add_argument('--img_folder', type=str, dest='img_folder',
+                        default='S001C001P001R001A002',
                         help='The folder with images that will be processed')
     parser.add_argument('--exp-cfg', type=str, dest='exp_cfg', default='data/conf.yaml',
                         help='The configuration of the experiment')
-    parser.add_argument('--output-folder', dest='output_folder', default='/mnt/h/Datasets/Own/Mesh/RGB', type=str,
+    parser.add_argument('--output-folder', dest='output_folder', default='/mnt/h/Datasets/NTU/base_joint_pt_single/', type=str,
                         help='The folder where the demo renderings will be' +
                              ' saved')
     parser.add_argument('--exp-opts', default=[], dest='exp_opts',
@@ -528,16 +536,17 @@ if __name__ == '__main__':
     parser.add_argument('--save-vis', dest='save_vis', default=False,
                         type=lambda x: x.lower() in ['true'],
                         help='Whether to save visualizations')
-    parser.add_argument('--save-mesh', dest='save_mesh', default=True,
+    parser.add_argument('--save-mesh', dest='save_mesh', default=False,
                         type=lambda x: x.lower() in ['true'],
                         help='Whether to save meshes')
-    parser.add_argument('--save-params', dest='save_params', default=False,
+    parser.add_argument('--save-params', dest='save_params', default=True,
                         type=lambda x: x.lower() in ['true'],
                         help='Whether to save parameters')
 
     cmd_args = parser.parse_args()
 
-    image_folder = cmd_args.image_folder
+    root_path = cmd_args.root_path
+    img_folder = cmd_args.img_folder
     show = cmd_args.show
     output_folder = cmd_args.output_folder
     pause = cmd_args.pause
@@ -561,8 +570,9 @@ if __name__ == '__main__':
 
     with threadpool_limits(limits=1):
         main(
-            image_folder,
-            cfg,
+            root_path=root_path,
+            image_folder=img_folder,
+            exp_cfg=cfg,
             show=show,
             demo_output_folder=output_folder,
             pause=pause,
