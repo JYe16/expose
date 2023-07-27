@@ -211,7 +211,6 @@ def undo_img_normalization(image, mean, std, add_alpha=True):
 
 @torch.no_grad()
 def main(
-        root_path: str,
         image_folder: str,
         exp_cfg,
         show: bool = False,
@@ -236,9 +235,9 @@ def main(
                colorize=True)
 
     trte = 'train/' if define_training_data(image_folder) else 'test/'
+    demo_output_folder = demo_output_folder + trte
     # image_folder = image_folder[56:88]
-    expose_dloader = preprocess_images(root_path + trte + image_folder + '/', exp_cfg, batch_size=rcnn_batch, device=device)
-    demo_output_folder = osp.expanduser(osp.expandvars(demo_output_folder + trte))
+    expose_dloader = preprocess_images(image_folder + '/', exp_cfg, batch_size=rcnn_batch, device=device)
     logger.info(f'Saving results to: {demo_output_folder}')
     os.makedirs(demo_output_folder, exist_ok=True)
 
@@ -439,7 +438,7 @@ def main(
                         out_params[key] = val[idx].item()
                     else:
                         out_params[key] = val[idx]
-                base_joint = torch.concatenate((base_joint, torch.FloatTensor(out_params['joints']).view(1, 144, 3)))
+                base_joint = torch.cat((base_joint, torch.FloatTensor(out_params['joints']).view(1, 144, 3)))
                 # np.savez_compressed(params_fname, **out_params)
 
             if show:
@@ -478,7 +477,8 @@ def main(
         print(f"Generated {pt_name} Shape {mesh_points.shape}")
         logger.info(f'Average inference time: {total_time / cnt}')
     if save_params:
-        torch.save(base_joint, os.path.join(demo_output_folder, str(image_folder + '_base_joint.pt')))
+        pt_name = image_folder.split('/')[-1] + '_base_joint.pt'
+        torch.save(base_joint, demo_output_folder + pt_name)
 
 
 def define_training_data(filename):
@@ -499,15 +499,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=arg_formatter,
                                      description=description)
 
-    parser.add_argument('--root_path', type=str, dest='root_path',
-                        default='/mnt/h/Datasets/NTU/rgb_img_single/',
-                        help='The folder with images that will be processed')
     parser.add_argument('--img_folder', type=str, dest='img_folder',
                         default='S001C001P001R001A002',
                         help='The folder with images that will be processed')
     parser.add_argument('--exp-cfg', type=str, dest='exp_cfg', default='data/conf.yaml',
                         help='The configuration of the experiment')
-    parser.add_argument('--output-folder', dest='output_folder', default='/mnt/h/Datasets/NTU/base_joint_pt_single/', type=str,
+    parser.add_argument('--output-folder', dest='output_folder', default='/mnt/d/yzk/NTU/base_joint_pt_single/', type=str,
                         help='The folder where the demo renderings will be' +
                              ' saved')
     parser.add_argument('--exp-opts', default=[], dest='exp_opts',
@@ -545,7 +542,6 @@ if __name__ == '__main__':
 
     cmd_args = parser.parse_args()
 
-    root_path = cmd_args.root_path
     img_folder = cmd_args.img_folder
     show = cmd_args.show
     output_folder = cmd_args.output_folder
@@ -568,18 +564,20 @@ if __name__ == '__main__':
     use_face_contour = cfg.datasets.use_face_contour
     set_face_contour(cfg, use_face_contour=use_face_contour)
 
-    with threadpool_limits(limits=1):
-        main(
-            root_path=root_path,
-            image_folder=img_folder,
-            exp_cfg=cfg,
-            show=show,
-            demo_output_folder=output_folder,
-            pause=pause,
-            focal_length=focal_length,
-            save_vis=save_vis,
-            save_mesh=save_mesh,
-            save_params=save_params,
-            degrees=degrees,
-            rcnn_batch=rcnn_batch,
-        )
+    if os.path.isfile(output_folder + 'train/' + img_folder + '_base_joint.pt') or os.path.isfile(output_folder + 'test/' + img_folder + '_base_joint.pt'):
+        print(f'File {img_folder}_base_joint.pt already exists!')
+    else:
+        with threadpool_limits(limits=1):
+            main(
+                image_folder=img_folder,
+                exp_cfg=cfg,
+                show=show,
+                demo_output_folder=output_folder,
+                pause=pause,
+                focal_length=focal_length,
+                save_vis=save_vis,
+                save_mesh=save_mesh,
+                save_params=save_params,
+                degrees=degrees,
+                rcnn_batch=rcnn_batch,
+            )
