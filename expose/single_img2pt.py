@@ -271,7 +271,7 @@ def main(
     total_time = 0
     cnt = 0
     mesh_points = np.empty(shape=(0, 10475, 3), dtype=float)
-    base_joint = torch.empty(size=(0, 144, 3))
+    smplx_params = torch.empty(size=(0, 500))
 
     for bidx, batch in enumerate(tqdm(expose_dloader, dynamic_ncols=True)):
 
@@ -436,7 +436,16 @@ def main(
                         out_params[key] = val[idx].item()
                     else:
                         out_params[key] = val[idx]
-                base_joint = torch.cat((base_joint, torch.FloatTensor(out_params['joints']).view(1, 144, 3)))
+                expression = torch.FloatTensor(out_params['expression']).view(1, -1)
+                jaw_pose = torch.FloatTensor(out_params['jaw_pose']).view(1, -1)
+                left_hand_pose = torch.FloatTensor(out_params['left_hand_pose']).view(1, -1)
+                right_hand_pose = torch.FloatTensor(out_params['right_hand_pose']).view(1, -1)
+                betas = torch.FloatTensor(out_params['betas']).view(1, -1)
+                global_orientation = torch.FloatTensor(out_params['global_orient']).view(1, -1)
+                body_pose = torch.FloatTensor(out_params['body_pose']).view(1, -1)
+                transl = torch.FloatTensor(out_params['transl']).view(1, -1)
+                params = torch.cat((expression, jaw_pose, left_hand_pose, right_hand_pose, betas, global_orientation, body_pose, transl), 1)
+                smplx_params = torch.cat((smplx_params, params))
                 # np.savez_compressed(params_fname, **out_params)
 
             if show:
@@ -474,8 +483,8 @@ def main(
         print(f"Generated {pt_name} Shape {mesh_points.shape}")
         logger.info(f'Average inference time: {total_time / cnt}')
     if save_params:
-        pt_name = image_folder.split('/')[-1] + '_base_joint.pt'
-        torch.save(base_joint, demo_output_folder + pt_name)
+        pt_name = image_folder.split('/')[-1] + '_params.pt'
+        torch.save(smplx_params, os.path.join(demo_output_folder, pt_name))
 
 
 def define_training_data(filename):
@@ -528,7 +537,7 @@ if __name__ == '__main__':
     parser.add_argument('--save-mesh', dest='save_mesh', default=True,
                         type=lambda x: x.lower() in ['true'],
                         help='Whether to save meshes')
-    parser.add_argument('--save-params', dest='save_params', default=False,
+    parser.add_argument('--save-params', dest='save_params', default=True,
                         type=lambda x: x.lower() in ['true'],
                         help='Whether to save parameters')
 
@@ -536,7 +545,7 @@ if __name__ == '__main__':
 
     img_folder = os.path.join(args.root, 'img', args.file)
     show = args.show
-    output_folder = os.path.join(args.root, 'Mesh', 'RGB', args.file)
+    output_folder = os.path.join(args.root, 'Mesh', 'RGB')
     pause = args.pause
     focal_length = args.focal_length
     save_vis = args.save_vis
