@@ -1052,7 +1052,13 @@ class SMPLXHead(nn.Module):
         camera_params = torch.index_select(
             body_parameters[-1], 1, self.camera_idxs)
         scale = camera_params[:, 0].view(-1, 1)
-        translation = camera_params[:, 1:3]
+        transl_t = camera_params[0, 1:3]
+        translation = torch.empty(size=(0, 3))
+        for i in range(len(camera_params)):
+            translation = torch.cat((translation, transl_t))
+
+        # translation = camera_params[:, 1:3]
+
         # Pass the predicted scale through exp() to make sure that the
         # scale values are always positive
         scale = self.camera_scale_func(scale)
