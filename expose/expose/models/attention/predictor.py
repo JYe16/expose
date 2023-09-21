@@ -1011,7 +1011,6 @@ class SMPLXHead(nn.Module):
         # the shape
         body_model_output = self.body_model(
             get_skin=True, return_shaped=True, **merged_params)
-
         # Split the vertices, joints, etc. to stages
         out_params = defaultdict(lambda: dict())
         for key in body_model_output:
@@ -1051,13 +1050,17 @@ class SMPLXHead(nn.Module):
         # Extract the camera parameters estimated by the body only image
         camera_params = torch.index_select(
             body_parameters[-1], 1, self.camera_idxs)
-        scale = camera_params[:, 0].view(-1, 1)
-        transl_t = camera_params[0, 1:3]
-        translation = torch.empty(size=(0, 3))
-        for i in range(len(camera_params)):
-            translation = torch.cat((translation, transl_t))
 
-        # translation = camera_params[:, 1:3]
+        # scale = torch.empty(size=(0, 1), device='cuda:0')
+        # sc_t = camera_params[0][0].view(1, 1)
+        # transl_t = camera_params[0, 1:3].view(1, 2)
+        # translation = torch.empty(size=(0, 2), device='cuda:0')
+        # for i in range(len(camera_params)):
+        #     translation = torch.cat((translation, transl_t))
+        #     scale = torch.cat((scale, sc_t))
+
+        translation = camera_params[:, 1:3]
+        scale = camera_params[:, 0].view(-1, 1)
 
         # Pass the predicted scale through exp() to make sure that the
         # scale values are always positive

@@ -222,7 +222,8 @@ def main(
         save_vis: bool = True,
         save_params: bool = False,
         save_mesh: bool = False,
-        degrees: Optional[List[float]] = []
+        degrees: Optional[List[float]] = [],
+        file: str = ''
         ) -> None:
     device = torch.device('cuda')
     if not torch.cuda.is_available():
@@ -476,15 +477,14 @@ def main(
                     plt.show()
 
     if save_mesh:
-        image_folder_splited = image_folder.split('/')
-        pt_name = image_folder_splited[len(image_folder_splited) - 1] + '.pt'
+        pt_name = file + '.pt'
         mesh_pt_name = os.path.join(demo_output_folder, pt_name)
         torch.save(torch.FloatTensor(mesh_points), mesh_pt_name)
         print(f"Generated {pt_name} Shape {mesh_points.shape}")
         logger.info(f'Average inference time: {total_time / cnt}')
     if save_params:
-        pt_name = image_folder.split('/')[-1] + '_params.pt'
-        torch.save(smplx_params, os.path.join(demo_output_folder, pt_name))
+        pt_name = file + '_params.pt'
+        torch.save(smplx_params, os.path.join(demo_output_folder, '../params', pt_name))
 
 
 def define_training_data(filename):
@@ -505,8 +505,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=arg_formatter,
                                      description=description)
 
-    parser.add_argument('--root', type=str, default='/mnt/h/Datasets/Own')
-    parser.add_argument('--file', type=str)
+    parser.add_argument('--root', type=str, default='/mnt/h/Datasets/Own/WiMesh-X/0920-yzk-drink')
+    parser.add_argument('--file', type=str, default='0920-yzk-drink')
     parser.add_argument('--exp-cfg', type=str, dest='exp_cfg', default='data/conf.yaml')
     parser.add_argument('--exp-opts', default=[], dest='exp_opts',
                         nargs='*', help='Extra command line arguments')
@@ -543,9 +543,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    img_folder = os.path.join(args.root, 'img', args.file)
+    img_folder = os.path.join(args.root, 'img')
     show = args.show
-    output_folder = os.path.join(args.root, 'Mesh', 'RGB')
+    output_folder = os.path.join(args.root, 'mesh')
     pause = args.pause
     focal_length = args.focal_length
     save_vis = args.save_vis
@@ -568,6 +568,7 @@ if __name__ == '__main__':
     with threadpool_limits(limits=1):
         main(
             image_folder=img_folder,
+            file=args.file,
             exp_cfg=cfg,
             show=show,
             demo_output_folder=output_folder,
