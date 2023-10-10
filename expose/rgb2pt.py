@@ -223,7 +223,7 @@ def main(
         save_params: bool = False,
         save_mesh: bool = False,
         degrees: Optional[List[float]] = []
-        ) -> None:
+) -> None:
     device = torch.device('cuda')
     if not torch.cuda.is_available():
         logger.error('CUDA is not available!')
@@ -236,6 +236,11 @@ def main(
 
     trte = 'train/' if define_training_data(image_folder) else 'test/'
     demo_output_folder = demo_output_folder + trte
+    file = img_folder.split('/')[-1]
+
+    if os.path.isfile(os.path.join(demo_output_folder, file + '.pt')):
+        print(f"File {file} has already been finished....")
+        exit(0)
     # image_folder = image_folder[56:88]
     expose_dloader = preprocess_images(image_folder + '/', exp_cfg, batch_size=rcnn_batch, device=device)
     logger.info(f'Saving results to: {demo_output_folder}')
@@ -273,7 +278,7 @@ def main(
     total_time = 0
     cnt = 0
     mesh_points = np.empty(shape=(0, 10475, 3), dtype=float)
-    base_joint = torch.empty(size=(0, 144, 3))
+    smplx_params = torch.empty(size=(0, 500))
 
     for bidx, batch in enumerate(tqdm(expose_dloader, dynamic_ncols=True)):
 
@@ -438,7 +443,17 @@ def main(
                         out_params[key] = val[idx].item()
                     else:
                         out_params[key] = val[idx]
-                base_joint = torch.cat((base_joint, torch.FloatTensor(out_params['joints']).view(1, 144, 3)))
+                expression = torch.FloatTensor(out_params['expression']).view(1, -1)
+                jaw_pose = torch.FloatTensor(out_params['jaw_pose']).view(1, -1)
+                left_hand_pose = torch.FloatTensor(out_params['left_hand_pose']).view(1, -1)
+                right_hand_pose = torch.FloatTensor(out_params['right_hand_pose']).view(1, -1)
+                betas = torch.FloatTensor(out_params['betas']).view(1, -1)
+                global_orientation = torch.FloatTensor(out_params['global_orient']).view(1, -1)
+                body_pose = torch.FloatTensor(out_params['body_pose']).view(1, -1)
+                transl = torch.FloatTensor(out_params['transl']).view(1, -1)
+                params = torch.cat((expression, jaw_pose, left_hand_pose, right_hand_pose, betas, global_orientation,
+                                    body_pose, transl), 1)
+                smplx_params = torch.cat((smplx_params, params))
                 # np.savez_compressed(params_fname, **out_params)
 
             if show:
@@ -477,8 +492,8 @@ def main(
         print(f"Generated {pt_name} Shape {mesh_points.shape}")
         logger.info(f'Average inference time: {total_time / cnt}')
     if save_params:
-        pt_name = image_folder.split('/')[-1] + '_base_joint.pt'
-        torch.save(base_joint, demo_output_folder + pt_name)
+        pt_name = file + '.pt'
+        torch.save(smplx_params, os.path.join(demo_output_folder, pt_name))
 
 
 def define_training_data(filename):
@@ -499,22 +514,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=arg_formatter,
                                      description=description)
 
-    parser.add_argument('--img_folder', type=str, dest='img_folder',
-                        default='S001C001P001R001A002',
-                        help='The folder with images that will be processed')
-    parser.add_argument('--exp-cfg', type=str, dest='exp_cfg', default='data/conf.yaml',
-                        help='The configuration of the experiment')
-    parser.add_argument('--output-folder', dest='output_folder', default='/mnt/d/yzk/NTU/base_joint_pt_single/', type=str,
-                        help='The folder where the demo renderings will be' +
-                             ' saved')
-    parser.add_argument('--exp-opts', default=[], dest='exp_opts',
-                        nargs='*', help='Extra command line arguments')
+    parser.add_argument('--img-folder', type=str, default='S001C001P001R001A002')
+    parser.add_argument('--exp-cfg', type=str, default='data/conf.yaml')
+    parser.add_argument('--output-folder', default='/mnt/d/yzk/NTU/base_joint_pt_single/', type=str)
+    parser.add_argument('--exp-opts', default=[], dest='exp_opts')
     parser.add_argument('--datasets', nargs='+',
-                        default=['openpose'], type=str,
-                        help='Datasets to process')
+                        default=['openpose'], type=str)
     parser.add_argument('--show', default=False,
-                        type=lambda arg: arg.lower() in ['true'],
-                        help='Display the results')
+                        type=lambda arg: arg.lower() in ['true'])
     parser.add_argument('--expose-batch',
                         dest='expose_batch',
                         default=1, type=int,
@@ -564,20 +571,17 @@ if __name__ == '__main__':
     use_face_contour = cfg.datasets.use_face_contour
     set_face_contour(cfg, use_face_contour=use_face_contour)
 
-    if os.path.isfile(output_folder + 'train/' + img_folder + '_base_joint.pt') or os.path.isfile(output_folder + 'test/' + img_folder + '_base_joint.pt'):
-        print(f'File {img_folder}_base_joint.pt already exists!')
-    else:
-        with threadpool_limits(limits=1):
-            main(
-                image_folder=img_folder,
-                exp_cfg=cfg,
-                show=show,
-                demo_output_folder=output_folder,
-                pause=pause,
-                focal_length=focal_length,
-                save_vis=save_vis,
-                save_mesh=save_mesh,
-                save_params=save_params,
-                degrees=degrees,
-                rcnn_batch=rcnn_batch,
-            )
+    with threadpool_limits(limits=1):
+        main(
+            image_folder=img_folder,
+            exp_cfg=cfg,
+            show=show,
+            demo_output_folder=output_folder,
+            pause=pause,
+            focal_length=focal_length,
+            save_vis=save_vis,
+            save_mesh=save_mesh,
+            save_params=save_params,
+            degrees=degrees,
+            rcnn_batch=rcnn_batch,
+        )

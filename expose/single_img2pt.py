@@ -424,6 +424,8 @@ def main(
                 mesh_points = np.concatenate((mesh_points, vertices))
 
             if save_params:
+                if os.path.isdir(os.path.join(demo_output_folder, '../params')) is False:
+                    os.mkdir(os.path.join(demo_output_folder, '../params'))
                 params_fname = osp.join(curr_out_path, f'{fname}_params.npz')
                 out_params = dict(fname=fname)
                 for key, val in stage_n_out.items():
@@ -495,6 +497,24 @@ def define_training_data(filename):
             return True
     return False
 
+def get_frames_into_img(input_path, output_path):
+    filename = input_path.split('/')[-1]
+    os.makedirs(output_path, exist_ok=True)
+    vidcap = cv2.VideoCapture(input_path)
+    success = True
+    count = 0
+    while success:
+        success, image = vidcap.read()
+        if success is True:
+            img_name = str(count)
+            while len(img_name) != 4:
+                img_name = "0" + img_name
+            # filename = args.file + "_" + filename + ".jpg"
+            img_name = img_name + '.jpg'
+            cv2.imwrite(output_path + img_name, image)
+            count += 1
+    print(f"processed file {filename} with {count} frames")
+
 
 if __name__ == '__main__':
     torch.backends.cudnn.benchmark = True
@@ -505,8 +525,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=arg_formatter,
                                      description=description)
 
-    parser.add_argument('--root', type=str, default='/mnt/h/Datasets/Own/WiMesh-X/0920-yzk-drink')
-    parser.add_argument('--file', type=str, default='0920-yzk-drink')
+    parser.add_argument('--root', type=str, default='/mnt/h/Datasets/Own/WiMesh-X/data/')
+    parser.add_argument('--file', type=str, default='1009-yzk-walk')
     parser.add_argument('--exp-cfg', type=str, dest='exp_cfg', default='data/conf.yaml')
     parser.add_argument('--exp-opts', default=[], dest='exp_opts',
                         nargs='*', help='Extra command line arguments')
@@ -543,9 +563,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    img_folder = os.path.join(args.root, 'img')
+    img_folder = os.path.join(args.root, args.file, 'img')
     show = args.show
-    output_folder = os.path.join(args.root, 'mesh')
+    output_folder = os.path.join(args.root, args.file, 'mesh')
     pause = args.pause
     focal_length = args.focal_length
     save_vis = args.save_vis
@@ -566,6 +586,7 @@ if __name__ == '__main__':
     set_face_contour(cfg, use_face_contour=use_face_contour)
 
     with threadpool_limits(limits=1):
+        get_frames_into_img(input_path=os.path.join(args.root, args.file, args.file + '.mp4'), output_path=img_folder)
         main(
             image_folder=img_folder,
             file=args.file,
