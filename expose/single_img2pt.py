@@ -511,7 +511,7 @@ def get_frames_into_img(input_path, output_path):
                 img_name = "0" + img_name
             # filename = args.file + "_" + filename + ".jpg"
             img_name = img_name + '.jpg'
-            cv2.imwrite(output_path + img_name, image)
+            cv2.imwrite(os.path.join(output_path, img_name), image)
             count += 1
     print(f"processed file {filename} with {count} frames")
 
